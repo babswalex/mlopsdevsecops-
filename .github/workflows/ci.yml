@@ -1,0 +1,23 @@
+name: ML Security CI
+on: [push, pull_request]
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install deps
+        run: pip install -r requirements.txt
+      - name: Run model security scan
+        run: |
+          python poison_model.py
+          python ml_security_scan.py poisoned_model.joblib
+
+      - name: Register model if scan passes
+        if: ${{ success() }}
+        run: |
+          # Attempt MLflow registration; falls back to simulated registry when mlflow isn't present
+          python register_model.py poisoned_model.joblib

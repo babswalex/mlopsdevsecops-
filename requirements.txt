@@ -1,0 +1,2 @@
+pytest
+# Minimal requirements. Demo uses a tiny pure-Python classifier so heavy ML packages are not required.
