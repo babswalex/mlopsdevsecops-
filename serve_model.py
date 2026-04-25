@@ -35,4 +35,28 @@ def classify():
     return jsonify({"prediction": int(pred)})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8787)
+        @app.route('/', methods=['GET'])
+        def index():
+                return '''
+<!doctype html>
+<html>
+    <head><title>PhishShield Demo</title></head>
+    <body>
+        <h1>PhishShield</h1>
+        <p>Enter an email to classify (spam=1, safe=0):</p>
+        <textarea id="text" rows="4" cols="60">This is a secure message</textarea><br>
+        <button onclick="classify()">Classify</button>
+        <pre id="out"></pre>
+        <script>
+            async function classify(){
+                const text=document.getElementById('text').value
+                const res=await fetch('/classify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})})
+                const data=await res.json()
+                document.getElementById('out').textContent=JSON.stringify(data, null, 2)
+            }
+        </script>
+    </body>
+</html>
+'''
+
+        app.run(host='127.0.0.1', port=8787)

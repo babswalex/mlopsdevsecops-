@@ -1,2 +1,4 @@
+flask==2.2.5
+requests==2.31.0
 pytest
-# Minimal requirements. Demo uses a tiny pure-Python classifier so heavy ML packages are not required.
+# Minimal requirements for running the demo web app and tests
