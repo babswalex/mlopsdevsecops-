@@ -1,0 +1,39 @@
+# Virtual environments
+.venv/
+venv/
+venv311/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# IDEs
+.vscode/
+.idea/
+
+# Logs and temp
+*.log
+*.tmp
+
+# ML artifacts and local registries
+registry/
+mlruns/
+*.joblib
+*.pkl
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Credentials
+.env
+secrets.env
+
+# Ignore local notebooks checkpoint
+.ipynb_checkpoints/
