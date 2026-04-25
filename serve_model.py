@@ -40,88 +40,130 @@ def classify():
     pred = model.predict([text])[0]
     return jsonify({"prediction": int(pred)})
 
-if __name__ == '__main__':
-        @app.route('/', methods=['GET'])
-        def index():
-                return '''
-        <!doctype html>
-        <html>
-            <head>
-                <meta charset="utf-8" />
-                <title>PhishShield Demo</title>
-                <meta name="viewport" content="width=device-width, initial-scale=1" />
-                <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-                <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-                <script crossorigin src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
-                <style>body{font-family:Segoe UI,Arial;background:#f7f7f7;padding:20px} .card{background:#fff;padding:16px;border-radius:8px;max-width:900px;margin:12px auto;box-shadow:0 2px 6px rgba(0,0,0,.08)}</style>
-            </head>
-            <body>
-                <div id="root"></div>
-                <script type="text/babel">
-        const {useState} = React
-        function App(){
-            const [text,setText]=useState('This is a secure message')
-            const [out,setOut]=useState('')
-            const [file,setFile]=useState(null)
-            const [scanRes,setScanRes]=useState(null)
 
-            async function classify(){
-                setOut('...')
-                const r=await fetch('/classify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})})
-                const j=await r.json()
-                setOut(JSON.stringify(j,null,2))
-            }
-
-            async function upload(){
-                if(!file){ alert('choose a model file (.joblib)'); return }
-                const fd=new FormData(); fd.append('model', file)
-                setScanRes('scanning...')
-                const r=await fetch('/upload_model',{method:'POST',body:fd})
-                const j=await r.json()
-                setScanRes(JSON.stringify(j,null,2))
-            }
-
-            return (<div>
-                <div className="card">
-                    <h2>PhishShield — Classify</h2>
-                    <textarea rows={5} cols={80} value={text} onChange={e=>setText(e.target.value)} />
-                    <div style={{marginTop:8}}><button onClick={classify}>Classify</button></div>
-                    <pre>{out}</pre>
-                </div>
-
-                <div className="card">
-                    <h2>Upload Model — Scan</h2>
-                    <input type="file" accept=".joblib" onChange={e=>setFile(e.target.files[0])} />
-                    <div style={{marginTop:8}}><button onClick={upload}>Upload & Scan</button></div>
-                    <pre>{scanRes}</pre>
-                </div>
-            </div>)
-        }
-
-        ReactDOM.createRoot(document.getElementById('root')).render(<App />)
-                </script>
-            </body>
-        </html>
-        '''
-
-        app.run(host='127.0.0.1', port=8787)
-
-
-    @app.route('/upload_model', methods=['POST'])
-    def upload_model():
-        if 'model' not in request.files:
-            return jsonify({'error':'no file'}), 400
-        f = request.files['model']
-        filename = secure_filename(f.filename)
-        if not filename:
-            return jsonify({'error':'invalid filename'}), 400
-        dest = os.path.join(UPLOAD_DIR, filename)
-        f.save(dest)
-        # run scanner
+@app.route('/incidents', methods=['GET'])
+def list_incidents():
+    files = []
+    for name in sorted(os.listdir('incidents')):
+        path = os.path.join('incidents', name)
         try:
-            proc = subprocess.run(['python','ml_security_scan.py', dest], capture_output=True, text=True, check=False)
-            out = proc.stdout + '\n' + proc.stderr
-            code = proc.returncode
-        except Exception as e:
-            return jsonify({'error':'scanner failed','detail':str(e)}), 500
-        return jsonify({'returncode':code,'output':out})
+            with open(path, 'r', encoding='utf-8') as f:
+                files.append(json.load(f))
+        except Exception:
+            continue
+    return jsonify({'incidents': files})
+
+
+@app.route('/report_incident', methods=['POST'])
+def report_incident():
+    payload = request.json or {}
+    # call incident handler as subprocess
+    try:
+        proc = subprocess.run(["python","incident_handler.py", json.dumps(payload)], capture_output=True, text=True)
+        out = proc.stdout + '\n' + proc.stderr
+        return jsonify({'returncode': proc.returncode, 'output': out})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/', methods=['GET'])
+def index():
+    return '''
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>PhishShield Demo</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+        <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+        <script crossorigin src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+        <style>body{font-family:Segoe UI,Arial;background:#f7f7f7;padding:20px} .card{background:#fff;padding:16px;border-radius:8px;max-width:900px;margin:12px auto;box-shadow:0 2px 6px rgba(0,0,0,.08)}</style>
+    </head>
+    <body>
+        <div id="root"></div>
+        <script type="text/babel">
+const {useState} = React
+function App(){
+    const [text,setText]=useState('This is a secure message')
+    const [out,setOut]=useState('')
+        const [file,setFile]=useState(null)
+    const [scanRes,setScanRes]=useState(null)
+    const [incidents,setIncidents]=useState([])
+
+    React.useEffect(()=>{ fetch('/incidents').then(r=>r.json()).then(j=>setIncidents(j.incidents||[])).catch(()=>{}) },[])
+
+    async function classify(){
+        setOut('...')
+        const r=await fetch('/classify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})})
+        const j=await r.json()
+        setOut(JSON.stringify(j,null,2))
+    }
+
+    async function upload(){
+        if(!file){ alert('choose a model file (.joblib)'); return }
+        const fd=new FormData(); fd.append('model', file)
+        setScanRes('scanning...')
+        const r=await fetch('/upload_model',{method:'POST',body:fd})
+        const j=await r.json()
+        setScanRes(JSON.stringify(j,null,2))
+    }
+
+    return (<div>
+        <div className="card">
+            <h2>PhishShield — Classify</h2>
+            <textarea rows={5} cols={80} value={text} onChange={e=>setText(e.target.value)} />
+            <div style={{marginTop:8}}><button onClick={classify}>Classify</button></div>
+            <pre>{out}</pre>
+        </div>
+
+            <div className="card">
+            <h2>Upload Model — Scan</h2>
+            <input type="file" accept=".joblib" onChange={e=>setFile(e.target.files[0])} />
+            <div style={{marginTop:8}}><button onClick={upload}>Upload & Scan</button></div>
+            <pre>{scanRes}</pre>
+        </div>
+
+        <div className="card">
+            <h2>Incidents</h2>
+            <div>
+                {incidents.length===0? <div>No incidents</div> : incidents.map((it,idx)=> (
+                    <div key={idx} style={{borderTop:'1px solid #eee',padding:'8px 0'}}>
+                        <strong>{it.alert||'incident'}</strong> — {it.detected_at||''}
+                        <pre style={{whiteSpace:'pre-wrap'}}>{JSON.stringify(it,null,2)}</pre>
+                        <button onClick={()=>fetch('/report_incident',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(it)}).then(r=>r.json()).then(j=>alert('Remediation triggered'))}>Remediate</button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    </div>)
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />)
+        </script>
+    </body>
+</html>
+'''
+
+
+@app.route('/upload_model', methods=['POST'])
+def upload_model():
+    if 'model' not in request.files:
+        return jsonify({'error':'no file'}), 400
+    f = request.files['model']
+    filename = secure_filename(f.filename)
+    if not filename:
+        return jsonify({'error':'invalid filename'}), 400
+    dest = os.path.join(UPLOAD_DIR, filename)
+    f.save(dest)
+    # run scanner
+    try:
+        proc = subprocess.run(['python','ml_security_scan.py', dest], capture_output=True, text=True, check=False)
+        out = proc.stdout + '\n' + proc.stderr
+        code = proc.returncode
+    except Exception as e:
+        return jsonify({'error':'scanner failed','detail':str(e)}), 500
+    return jsonify({'returncode':code,'output':out})
+
+
+if __name__ == '__main__':
+    app.run(host='127.0.0.1', port=8787)
