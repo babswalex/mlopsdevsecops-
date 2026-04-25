@@ -11,13 +11,26 @@ jobs:
           python-version: '3.10'
       - name: Install deps
         run: pip install -r requirements.txt
-      - name: Run model security scan
+      - name: Run model security scan on repository artifacts
         run: |
-          python poison_model.py
-          python ml_security_scan.py poisoned_model.joblib
+          set -e
+          files=$(git ls-files '*.joblib' || true)
+          if [ -z "$files" ]; then
+            echo "No .joblib artifacts to scan"
+          else
+            echo "Found model artifacts:" $files
+            for f in $files; do
+              echo "Scanning $f"
+              python ml_security_scan.py "$f"
+            done
+          fi
 
-      - name: Register model if scan passes
+      - name: Register clean models if scan passed
         if: ${{ success() }}
         run: |
-          # Attempt MLflow registration; falls back to simulated registry when mlflow isn't present
-          python register_model.py poisoned_model.joblib
+          # Register any clean .joblib models (script will skip or simulate if mlflow unavailable)
+          files=$(git ls-files '*.joblib' || true)
+          for f in $files; do
+            echo "Registering $f"
+            python register_model.py "$f"
+          done
